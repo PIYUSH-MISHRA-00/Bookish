@@ -20,7 +20,6 @@ COPY . /app
 
 # Upgrade pip and install dependencies
 RUN pip install --upgrade pip \
-    && pip install numpy \
     && pip install -r requirements.txt
 
 # Make port 8501 available to the world outside this container
