@@ -1,30 +1,20 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10
+# Use the official Python image from the Docker Hub
+FROM python:3.12-slim
 
-# Set environment variables to prevent Python from writing .pyc files to disc and to ensure stdout/stderr is sent straight to the terminal
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-
-# Set the working directory in the container
+# Set the working directory
 WORKDIR /app
 
-# Install system dependencies and build tools required for `scikit-surprise`
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libatlas-base-dev \
-    gfortran \
-    && rm -rf /var/lib/apt/lists/*
+# Copy the requirements file into the container
+COPY requirements.txt .
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Upgrade pip and install dependencies
-RUN pip install --upgrade pip \
-    && pip install -r requirements.txt
+# Copy the rest of the application code into the container
+COPY . .
 
-# Make port 8501 available to the world outside this container
+# Expose the port Streamlit will run on
 EXPOSE 8501
 
-# Run streamlit when the container launches
-ENTRYPOINT ["streamlit", "run"]
-CMD ["bookish_app.py"]
+# Command to run the Streamlit app
+CMD ["streamlit", "run", "bookish_app.py"]
