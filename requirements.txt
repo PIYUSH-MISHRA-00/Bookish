@@ -1,6 +1,7 @@
-streamlit
+numpy==1.23.5
+scikit-surprise==1.1.1
+streamlit==1.23.0
 pandas
 requests
-scikit-surprise
 lxml
-numpy
+

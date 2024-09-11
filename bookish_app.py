@@ -4,6 +4,7 @@ import pandas as pd
 from surprise import Dataset, Reader, SVD
 from surprise.model_selection import train_test_split
 import pickle
+import numpy
 
 # Function to get books from Google Books API
 def get_google_books(query):

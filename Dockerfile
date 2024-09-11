@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.10
 
 # Set environment variables to prevent Python from writing .pyc files to disc and to ensure stdout/stderr is sent straight to the terminal
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -18,12 +18,10 @@ RUN apt-get update && apt-get install -y \
 # Copy the current directory contents into the container at /app
 COPY . /app
 
-# Upgrade pip and install numpy separately
+# Upgrade pip and install dependencies
 RUN pip install --upgrade pip \
-    && pip install numpy
-
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+    && pip install numpy \
+    && pip install -r requirements.txt
 
 # Make port 8501 available to the world outside this container
 EXPOSE 8501
