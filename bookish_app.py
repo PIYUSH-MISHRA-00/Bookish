@@ -2,9 +2,9 @@ import streamlit as st
 import requests
 import pandas as pd
 from surprise import Dataset, Reader, SVD
-from surprise.model_selection import train_test_split
+from surprise.model_selection import train_test_split, GridSearchCV
 import pickle
-import numpy
+import numpy as np
 
 # Function to get books from Google Books API
 def get_google_books(query):
@@ -42,7 +42,7 @@ def create_books_df(google_books, open_books):
         data["title"].append(volume_info.get('title', 'Unknown Title'))
         data["author"].append(volume_info.get('authors', ['Unknown Author'])[0])
         data["cover_image"].append(volume_info.get('imageLinks', {}).get('thumbnail', ''))
-        data["ratings"].append(volume_info.get('averageRating', 0))  # Default to 0 if no rating
+        data["ratings"].append(volume_info.get('averageRating', np.nan))  # Use NaN for missing ratings
         data["user_id"].append(user_ids[i])
 
     # Open Library data
@@ -52,18 +52,18 @@ def create_books_df(google_books, open_books):
         cover_id = book.get('cover_i')
         cover_url = f"http://covers.openlibrary.org/b/id/{cover_id}-M.jpg" if cover_id else ''
         data["cover_image"].append(cover_url)
-        data["ratings"].append(0)  # No rating data available in Open Library
+        data["ratings"].append(np.nan)  # Use NaN for missing ratings
         data["user_id"].append(user_ids[len(google_books) + i])
 
     return pd.DataFrame(data)
 
 # Function to display books in a grid
-def display_books(books_df):
+def display_books(books_df, small=False):
     cols = st.columns(5)
     for i, book in books_df.iterrows():
         with cols[i % 5]:
             if book['cover_image']:  # Check if the cover_image is not empty
-                st.image(book['cover_image'], use_column_width=True)
+                st.image(book['cover_image'], use_column_width='auto', width=80 if small else 150)
             else:
                 st.text("No Image Available")  # Display a placeholder if no image
             st.write(f"**{book['title']}**")
@@ -126,13 +126,23 @@ if query:
         reader = Reader(rating_scale=(1, 5))
         data = Dataset.load_from_df(books_df[['user_id', 'title', 'ratings']], reader)
         trainset, testset = train_test_split(data, test_size=0.25)
-        algo = SVD(n_factors=50, n_epochs=20, biased=True, random_state=42)
-        algo.fit(trainset)
-        predictions = algo.test(testset)
-        
+
+        # Hyperparameter tuning with GridSearchCV
+        param_grid = {
+            'n_factors': [20, 50, 100],
+            'n_epochs': [10, 20, 30],
+            'biased': [True, False]
+        }
+        gs = GridSearchCV(SVD, param_grid, measures=['rmse'], cv=3)
+        gs.fit(data)
+
+        best_algo = gs.best_estimator['rmse']
+        best_algo.fit(trainset)
+        predictions = best_algo.test(testset)
+
         # Save the model to a pickle file
         with open('bookish_recommender.pkl', 'wb') as f:
-            pickle.dump(algo, f)
+            pickle.dump(best_algo, f)
 
         st.write("### Model Training Complete")
         st.write("The recommendation model has been trained and saved.")
@@ -143,8 +153,26 @@ if query:
         if st.button("Recommend"):
             with open('bookish_recommender.pkl', 'rb') as f:
                 loaded_model = pickle.load(f)
-            user_id = books_df['user_id'].iloc[0]  # Example user_id for simplicity
-            predicted_rating = loaded_model.predict(user_id, selected_book).est
-            st.write(f"We recommend the book '{selected_book}' with a predicted rating of {predicted_rating:.2f} based on your preferences.")
+            # Placeholder user ID; in a real app, gather user-specific input
+            user_id = books_df['user_id'].iloc[0]
+            predictions = [loaded_model.predict(user_id, book_title) for book_title in books_df['title']]
+            predictions.sort(key=lambda x: x.est, reverse=True)
+            
+            # Display recommendations in a grid layout with smaller covers
+            st.write("### Recommended Books for You")
+            cols = st.columns(5)
+            for prediction in predictions[:5]:  # Show top 5 recommendations
+                book_title = prediction.iid
+                predicted_rating = prediction.est
+                book_info = books_df[books_df['title'] == book_title].iloc[0]
+                with cols[predictions.index(prediction) % 5]:
+                    if book_info['cover_image']:
+                        st.image(book_info['cover_image'], use_column_width='auto', width=80)
+                    else:
+                        st.text("No Image Available")
+                    st.write(f"**{book_title}**")
+                    st.write(f"Predicted Rating: {predicted_rating:.2f}")
+                    st.write(f"Author: {book_info['author']}")
+                    st.write("---")
     else:
         st.write("No books found for your query. Try a different search term.")
